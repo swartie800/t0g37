@@ -138,91 +138,150 @@
     </div>
 
     <script>
-        // Load data from local JSON file (updated by GitHub Actions)
-        async function loadAllData() {
-            const hkPoolsBody = document.getElementById('hk-data-body');
-            const hkLottoContainer = document.getElementById('hk-lotto-container');
+        // List of CORS proxies to try (fallback if one fails)
+        const CORS_PROXIES = [
+            'https://api.allorigins.win/raw?url=',
+            'https://api.codetabs.com/v1/proxy?quest='
+        ];
 
-            try {
-                const response = await fetch('data/hk-data.json');
-
-                if (!response.ok) {
-                    throw new Error('Failed to load data');
+        // Try fetch with multiple CORS proxies
+        async function fetchWithProxy(url) {
+            for (const proxy of CORS_PROXIES) {
+                try {
+                    const response = await fetch(proxy + encodeURIComponent(url), {
+                        timeout: 10000
+                    });
+                    if (response.ok) {
+                        return await response.text();
+                    }
+                } catch (error) {
+                    console.log(`Proxy ${proxy} failed, trying next...`);
                 }
-
-                const data = await response.json();
-
-                // Display last updated time
-                console.log('Data last updated:', data.lastUpdated);
-
-                // Render HK Pools data
-                renderHKPoolsData(data.hkPools, hkPoolsBody);
-
-                // Render HK Lotto data
-                renderHKLottoData(data.hkLotto, hkLottoContainer);
-
-            } catch (error) {
-                console.error('Error loading data:', error);
-                hkPoolsBody.innerHTML = `<tr><td colspan="2" class="error">Error loading data: ${escapeHtml(error.message)}</td></tr>`;
-                hkLottoContainer.innerHTML = `<p class="error">Error: ${escapeHtml(error.message)}</p>`;
             }
+            throw new Error('All CORS proxies failed');
         }
 
-        // Render HK Pools table
-        function renderHKPoolsData(hkPools, tbody) {
-            if (!hkPools || hkPools.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="2" class="error">No data available</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = '';
-
-            hkPools.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${escapeHtml(item.tanggal)}</td>
-                    <td>${escapeHtml(item.hasil)}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-
-        // Render HK Lotto table
-        function renderHKLottoData(hkLotto, container) {
-            if (!hkLotto || hkLotto.length === 0) {
-                container.innerHTML = '<p class="error">No data available</p>';
-                return;
-            }
-
-            const table = document.createElement('table');
-
-            // Add header
-            const headerRow = document.createElement('tr');
-            headerRow.innerHTML = `
-                <th>Tanggal</th>
-                <th>Hasil</th>
-            `;
-            table.appendChild(headerRow);
-
-            // Add data rows
-            hkLotto.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${escapeHtml(item.tanggal)}</td>
-                    <td>${escapeHtml(item.hasil)}</td>
-                `;
-                table.appendChild(row);
-            });
-
-            container.innerHTML = '';
-            container.appendChild(table);
-        }
-
-        // Helper function to escape HTML entities
+        // Function to escape HTML entities
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // Function to fetch and parse Hongkong Pools data
+        async function loadHKPoolsData() {
+            const tbody = document.getElementById('hk-data-body');
+
+            try {
+                const html = await fetchWithProxy('https://tabelsemalam.com/');
+
+                // Parse the HTML
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                // Find the table inside the "all" div (id="all")
+                const allDiv = doc.getElementById('all');
+                if (!allDiv) {
+                    throw new Error('Could not find table container');
+                }
+
+                const table = allDiv.querySelector('table');
+                if (!table) {
+                    throw new Error('Could not find table');
+                }
+
+                // Get all rows from tbody
+                const rows = table.querySelectorAll('tbody tr');
+
+                // Clear loading message
+                tbody.innerHTML = '';
+
+                // Process each row
+                rows.forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length >= 2) {
+                        const tanggal = cells[0].textContent.trim();
+                        const hk = cells[1].textContent.trim();
+
+                        const newRow = document.createElement('tr');
+                        newRow.innerHTML = `
+                            <td>${escapeHtml(tanggal)}</td>
+                            <td>${escapeHtml(hk)}</td>
+                        `;
+                        tbody.appendChild(newRow);
+                    }
+                });
+
+                if (tbody.children.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="2" class="error">No data found</td></tr>';
+                }
+
+            } catch (error) {
+                console.error('Error loading HK Pools data:', error);
+                tbody.innerHTML = `<tr><td colspan="2" class="error">Error: ${escapeHtml(error.message)}</td></tr>`;
+            }
+        }
+
+        // Function to fetch and parse HK Lotto data
+        async function loadHKLottoData() {
+            const container = document.getElementById('hk-lotto-container');
+
+            try {
+                const html = await fetchWithProxy('https://masterlive.net/pengeluaran-hk-tercepat.php');
+
+                // Parse the HTML
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                // Find table with class TableKeluaran
+                const table = doc.querySelector('table.TableKeluaran');
+
+                if (!table) {
+                    throw new Error('Table not found');
+                }
+
+                // Create new table for display
+                const newTable = document.createElement('table');
+
+                // Add header
+                const headerRow = document.createElement('tr');
+                headerRow.innerHTML = '<th>Tanggal</th><th>Hasil</th>';
+                newTable.appendChild(headerRow);
+
+                // Process the table rows
+                const rows = table.querySelectorAll('tr');
+
+                rows.forEach(tr => {
+                    // Skip banner rows
+                    if (tr.querySelector('td.Keluaran_Banner_Body') || tr.querySelector('td[colspan="4"]')) {
+                        return;
+                    }
+
+                    const cells = tr.querySelectorAll('td');
+
+                    // Process data rows with 4 or more cells
+                    if (cells.length >= 4) {
+                        const tanggal = cells[1].textContent.trim();
+                        const hasil = cells[3].textContent.trim();
+
+                        if (tanggal && hasil) {
+                            const newRow = document.createElement('tr');
+                            newRow.innerHTML = `
+                                <td>${escapeHtml(tanggal)}</td>
+                                <td>${escapeHtml(hasil)}</td>
+                            `;
+                            newTable.appendChild(newRow);
+                        }
+                    }
+                });
+
+                container.innerHTML = '';
+                container.appendChild(newTable);
+
+            } catch (error) {
+                console.error('Error loading HK Lotto data:', error);
+                container.innerHTML = `<p class="error">Error: ${escapeHtml(error.message)}</p>`;
+            }
         }
 
         // Function for smooth scroll
@@ -236,7 +295,8 @@
 
         // Load data when page loads
         document.addEventListener('DOMContentLoaded', () => {
-            loadAllData();
+            loadHKPoolsData();
+            loadHKLottoData();
         });
     </script>
 </body>
