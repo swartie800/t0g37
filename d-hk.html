@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HK Data Only</title>
+    <style>
+        body {
+            background-color: #ffffff;
+            color: #000000;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* The Wrap Container */
+        .main-wrap {
+            border: 2px solid #dddddd;
+            margin: 10px;
+            padding: 10px;
+            border-radius: 12px;
+            background-color: #ffffff;
+            position: relative;
+            margin-bottom: 70px;
+            /* Margin for banner ads */
+        }
+
+        .tab-container {
+            display: flex;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #dddddd;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            background-color: #f4f4f4;
+            border: 1px solid #dddddd;
+            color: #000000;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        th,
+        td {
+            border: 1px solid #dddddd;
+            padding: 10px;
+        }
+
+        td {
+            color: #333333;
+        }
+
+        th {
+            background-color: #eeeeee;
+            color: #000000;
+        }
+
+        /* Custom Scrollbar for the wrap */
+        .main-wrap {
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .main-wrap::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .main-wrap::-webkit-scrollbar-thumb {
+            background: #cccccc;
+            border-radius: 4px;
+        }
+
+        .main-wrap::-webkit-scrollbar-thumb:hover {
+            background: #bbbbbb;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #cc0000;
+        }
+
+        /* Styling for HK Lotto table */
+        #hk-lotto-container table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="main-wrap" id="scrollContainer">
+        <!-- Tab Navigasi -->
+        <div class="tab-container">
+            <div class="tab">HONGKONG POOLS</div>
+        </div>
+
+        <!-- Table with Tanggal and HK columns only -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Tanggal</th>
+                    <th>Hasil</th>
+                </tr>
+            </thead>
+            <tbody id="hk-data-body">
+                <tr>
+                    <td colspan="2" class="loading">Loading data...</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <hr>
+        <div class="tab-container">
+            <div class="tab">HK LOTTO</div>
+        </div>
+        <div id="hk-lotto-container">
+            <p class="loading">Loading HK Lotto data...</p>
+        </div>
+    </div>
+
+    <script>
+        // Load data from local JSON file (updated by GitHub Actions)
+        async function loadAllData() {
+            const hkPoolsBody = document.getElementById('hk-data-body');
+            const hkLottoContainer = document.getElementById('hk-lotto-container');
+
+            try {
+                const response = await fetch('data/hk-data.json');
+
+                if (!response.ok) {
+                    throw new Error('Failed to load data');
+                }
+
+                const data = await response.json();
+
+                // Display last updated time
+                console.log('Data last updated:', data.lastUpdated);
+
+                // Render HK Pools data
+                renderHKPoolsData(data.hkPools, hkPoolsBody);
+
+                // Render HK Lotto data
+                renderHKLottoData(data.hkLotto, hkLottoContainer);
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                hkPoolsBody.innerHTML = `<tr><td colspan="2" class="error">Error loading data: ${escapeHtml(error.message)}</td></tr>`;
+                hkLottoContainer.innerHTML = `<p class="error">Error: ${escapeHtml(error.message)}</p>`;
+            }
+        }
+
+        // Render HK Pools table
+        function renderHKPoolsData(hkPools, tbody) {
+            if (!hkPools || hkPools.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" class="error">No data available</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+
+            hkPools.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${escapeHtml(item.tanggal)}</td>
+                    <td>${escapeHtml(item.hasil)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Render HK Lotto table
+        function renderHKLottoData(hkLotto, container) {
+            if (!hkLotto || hkLotto.length === 0) {
+                container.innerHTML = '<p class="error">No data available</p>';
+                return;
+            }
+
+            const table = document.createElement('table');
+
+            // Add header
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = `
+                <th>Tanggal</th>
+                <th>Hasil</th>
+            `;
+            table.appendChild(headerRow);
+
+            // Add data rows
+            hkLotto.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${escapeHtml(item.tanggal)}</td>
+                    <td>${escapeHtml(item.hasil)}</td>
+                `;
+                table.appendChild(row);
+            });
+
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+
+        // Helper function to escape HTML entities
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Function for smooth scroll
+        function scrollDown() {
+            const container = document.getElementById('scrollContainer');
+            container.scrollBy({
+                top: 200,
+                behavior: 'smooth'
+            });
+        }
+
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAllData();
+        });
+    </script>
+</body>
+
+</html>
